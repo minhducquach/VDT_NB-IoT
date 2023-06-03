@@ -1,0 +1,7 @@
+/.settings
+/build
+.cproject
+.project
+CMakeLists.txt
+LICENSE
+sdkconfig
