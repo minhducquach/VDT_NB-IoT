@@ -14,8 +14,13 @@ static const int RX_BUF_SIZE = 1024;
 #define RXD_PIN (GPIO_NUM_16)
 
 int state = -1;
-bool flag = 0;
+bool flag = 0,flag_ceng=0,flag_gnss=0;
+char* data_pub;
+char* data_raw = "";
+char *rsrp,*rsrq,*sinr,*pci,*cellid,*lon,*lat;
 
+void getDataCENG(char* chuoi);
+void getDataGNSS(char* chuoi);
 void init(void) {
     const uart_config_t uart_config = {
         .baud_rate = 115200,
@@ -69,6 +74,7 @@ static void tx_task(void *arg)
     		break;
     	case 2:
     		sendData(TX_TASK_TAG, "AT+CENG?\r");
+    		flag_ceng=1;
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 3:
@@ -84,37 +90,57 @@ static void tx_task(void *arg)
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 6:
-    		sendData(TX_TASK_TAG, "AT+SMCONF=\"URL\",\"mqtt.thingsboard.cloud\",1883\r");
+    		sendData(TX_TASK_TAG, "AT+CGNSPWR=1\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 7:
-    		sendData(TX_TASK_TAG, "AT+SMCONF=\"KEEPTIME\",60\r");
-    		vTaskDelay(1000 / portTICK_PERIOD_MS);
-    		break;
+    	    sendData(TX_TASK_TAG, "AT+CGNSINF\r");
+    	    flag_gnss=1;
+    	    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    	    break;
     	case 8:
-    		sendData(TX_TASK_TAG, "AT+SMCONF=\"USERNAME\",\"HXKXMzqojhpfaeirFPjA\"\r");
+    		sendData(TX_TASK_TAG, "AT+SMCONF=\"URL\",\"demo.thingsboard.io\",1883\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 9:
-    		sendData(TX_TASK_TAG, "AT+SMCONF=\"CLIENTID\",\"4085ee10-fd30-11ed-b64e-63b44ed1ddba\"\r");
+    		sendData(TX_TASK_TAG, "AT+SMCONF=\"KEEPTIME\",60\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 10:
-    		sendData(TX_TASK_TAG, "AT+SMCONF?\r");
+    		sendData(TX_TASK_TAG, "AT+SMCONF=\"USERNAME\",\"I6Ox62mKoqFaRJXRLhml\"\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 11:
-    		sendData(TX_TASK_TAG, "AT+SMCONN\r");
-    		vTaskDelay(5000 / portTICK_PERIOD_MS);
+    		sendData(TX_TASK_TAG, "AT+SMCONF=\"CLIENTID\",\"86b4e280-0445-11ee-860f-e1cb82b59e56\"\r");
+    		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
     	case 12:
+    		sendData(TX_TASK_TAG, "AT+SMCONF?\r");
+    		vTaskDelay(1000 / portTICK_PERIOD_MS);
+//    		ESP_LOGI(TX_TASK_TAG, "%s", data_pub);
+//    		    	    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    		break;
+    	case 13:
+    		sendData(TX_TASK_TAG, "AT+SMCONN\r");
+    		vTaskDelay(10000 / portTICK_PERIOD_MS);
+    		break;
+    	case 14:
     		sendData(TX_TASK_TAG, "AT+SMSTATE?\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
-    	case 13:
-    		sendData(TX_TASK_TAG, "AT+SMPUB=\"v1/devices/me/telemetry\",8,0,1,{\"st\":1}\r");
+    	case 15:
+    		sendData(TX_TASK_TAG, "AT+SMPUB=\"v1/devices/me/telemetry\",106,0,1\r");
     		vTaskDelay(1000 / portTICK_PERIOD_MS);
     		break;
+    	case 16:
+//    	    sendData(TX_TASK_TAG, "{\"st\":1}\r");
+//    	    vTaskDelay(1000 / portTICK_PERIOD_MS);
+//    	    break;
+//    	case 17:
+    	    sendData(TX_TASK_TAG, data_pub);
+//    		ESP_LOGI(TX_TASK_TAG, "%s", data_pub);
+    	    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    	    break;
     	default:
     		break;
     	}
@@ -131,7 +157,7 @@ static void rx_task(void *arg)
         const int rxBytes = uart_read_bytes(UART_NUM_1, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
         if (rxBytes > 0) {
             data[rxBytes] = 0;
-            if (state == -1 || (state >= 1 && state <= 3) ||state == 12){
+            if (state == -1 || (state >= 1 && state <= 3) || state == 7 || state == 14){
             	if (state == -1 && strstr((const char*) data, "OK")){
             		state = 0;
             	    ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
@@ -143,24 +169,54 @@ static void rx_task(void *arg)
             	}
             	else if (state == 2 && strstr((const char*) data, "NB-IOT")){
             		ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
+            		data_raw = (char*) data;
+            		getDataCENG(data_raw);
+//            		sprintf(data_pub, "%s", data);
             		state++;
+//            		flag_ceng=0;
+//            		state = 17;
             	}
             	else if (state == 3){
             		ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
             	    state++;
             	}
-            	else if (state == 12 && (strstr((const char*) data, "1") || strstr((const char*) data, "2"))){
+            	else if (state == 7 && !strstr((const char*) data, "+CGNSINF: 1,,") && !strstr((const char*) data, "+CGNSINF: 0")){
             		ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
             	    state++;
             	}
-            	else if (state == 12 && (strstr((const char*) data, "0"))){
+            	else if (state == 14 && (strstr((const char*) data, "1") || strstr((const char*) data, "2"))){
+            		ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
+            	    state++;
+            	}
+            	else if (state == 14 && (strstr((const char*) data, "0"))){
             	    ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
             	    state--;
             	}
             }
-            else if (strstr((const char*) data, "OK")){
+            else if (flag_gnss==1 && strstr((const char*) data, "OK"))
+                  {
+                          ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
+                          ESP_LOGI(RX_TASK_TAG, "%s", (char*) data);
+//                          data_raw = (char*) data;
+					  if (!strstr(data_raw,"+CGNSINF: 0,") && (!strstr(data_raw, "+CGNSINF: 1,,,0.000000,0.000000,")))
+					  {
+						  getDataGNSS(data_raw);
+					  }
+					  else{
+						  sprintf(data_pub+strlen(data_pub),"\"lat\":\"0.000000\",\"lon\":\"0.000000\"}");
+					  }
+//                          sprintf(data_pub+strlen(data_pub), "%s", data);
+                          state++;
+                          flag_gnss=0;
+                  }
+            else if (strstr((const char*) data, "OK"))
+            {
             	ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
             	state++;
+            }
+            else if (strstr((const char*) data, ">")){
+                ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
+                state++;
             }
             else{
             	ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
@@ -172,9 +228,72 @@ static void rx_task(void *arg)
     }
     free(data);
 }
-
+void getDataCENG(char* chuoi)
+{
+//	printf("%s", chuoi);
+	char* found = strchr(chuoi, '\"');
+//	printf("%s", found);
+	char* found1 = strstr(found, "\n");
+//	printf("%s", found1);
+	size_t pos = found1-found+1;
+	char sub_str[52];
+	size_t i;
+	for (i =0; i <pos-2; i++) {
+       sub_str[i] = found[i+1];
+		}
+	char* parameter;
+	int cnt5=0;
+	parameter = strtok(sub_str,",");
+    while(parameter !=NULL && cnt5<10 ){
+    cnt5++;
+    parameter = strtok(NULL,",");
+        switch (cnt5)
+        {
+            case 1:
+            pci = parameter;
+            break;
+            case 2:
+            rsrp = parameter;
+            break;
+            case 4:
+            rsrq = parameter;
+            break;
+            case 5:
+            sinr = parameter;
+            break;
+            case 7:
+            cellid = parameter;
+            break;
+            default:
+            break;
+        }
+	}
+	 sprintf(data_pub,"{\"pci\":\"%s\",\"rsrp\":\"%s\",\"rsrq\":\"%s\",\"sinr\":\"%s\",\"cellid\":\"%s\",",pci,rsrp,rsrq,sinr,cellid);
+}
+void getDataGNSS(char* chuoi)
+{
+	ESP_LOGI("NOTHING", "%s", chuoi);
+    char* st= strchr(chuoi, ":");
+//    st=strchr(st, ' ');
+    char sub_str1[(int)strlen(st)];
+    size_t i;
+    for (i =0; i <strlen(st); i++) sub_str1[i] = st[i];
+    char* parameter1;
+ 	int cnt1=0;
+    parameter1= strtok(sub_str1,",");
+    while(parameter1 !=NULL && cnt1<5)
+    {
+        cnt1++;
+        parameter1 = strtok(NULL,",");
+        if (cnt1 == 3) lon =parameter1;
+        else if (cnt1==4) lat = parameter1;
+	}
+    sprintf(data_pub+strlen(data_pub),"\"lat\":\"%s\",\"lon\":\"%s\"}",lat,lon);
+//	sprintf(data_pub+strlen(data_pub),"\"lat\":\"0.000000\",\"lon\":\"0.000000\"}");
+}
 void app_main(void)
 {
+	data_pub = (char*)malloc(150);
     init();
     initGPIO();
     xTaskCreate(rx_task, "uart_rx_task", 1024*2, NULL, configMAX_PRIORITIES, NULL);
