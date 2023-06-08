@@ -1,0 +1,42 @@
+/* Add the necessary CSS for the list icon */
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css");
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+#map {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+}
+
+.list-button {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  background-color: #f2f2f2;
+  padding: 10px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.list-container {
+  display: none;
+  margin-top: 20px;
+}
+
+.list-container table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.list-container table th,
+.list-container table td {
+  padding: 10px;
+  border: 1px solid #ccc;
+}
