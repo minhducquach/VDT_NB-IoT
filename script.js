@@ -226,7 +226,7 @@ $(document).ready(function () {
   // Add title to the table
   $("<caption></caption>")
     .addClass("table-title")
-    .text("10 LATEST ENTRIES")
+    .text("20 LATEST ENTRIES")
     .prependTo("#data-table");
 
   $(".table-title").css({
