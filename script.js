@@ -82,12 +82,18 @@ $(document).ready(function () {
             var parts = pair.split(":");
             var key = parts[0];
             var val = parts[1];
-            popupContent +=
-              "<tr><td><strong>" +
-              key +
-              "</strong></td><td>" +
-              val +
-              "</td></tr>";
+            if (key == "rsrq" || key == "rsrp") {
+              popupContent +=
+                "<tr><td><strong>" + key + "</strong></td><td>" + val + " dBm";
+              ("</td></tr>");
+            } else {
+              popupContent +=
+                "<tr><td><strong>" +
+                key +
+                "</strong></td><td>" +
+                val +
+                "</td></tr>";
+            }
           });
           popupContent +=
             "<tr><td><strong>Quality</strong></td><td>" +
@@ -171,8 +177,14 @@ $(document).ready(function () {
       $("<td></td>").css("color", colorStr).text(lat).appendTo(row);
       $("<td></td>").css("color", colorStr).text(lon).appendTo(row);
       $("<td></td>").css("color", colorStr).text(values["pci"]).appendTo(row);
-      $("<td></td>").css("color", colorStr).text(values["rsrp"]).appendTo(row);
-      $("<td></td>").css("color", colorStr).text(values["rsrq"]).appendTo(row);
+      $("<td></td>")
+        .css("color", colorStr)
+        .text(`${values["rsrp"]} dBm`)
+        .appendTo(row);
+      $("<td></td>")
+        .css("color", colorStr)
+        .text(`${values["rsrq"]} dBm`)
+        .appendTo(row);
       $("<td></td>").css("color", colorStr).text(values["sinr"]).appendTo(row);
       $("<td></td>")
         .css("color", colorStr)
