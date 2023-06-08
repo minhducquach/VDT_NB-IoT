@@ -27,7 +27,7 @@ $(document).ready(function () {
         // Clear existing markers on the map
         markerLayer.clearLayers();
 
-        var latestData = data.slice(0, 10);
+        var latestData = data.slice(0, 20);
         latestPoint = latestData[0]; // Get the latest data point
         map.setView([latestPoint.lat, latestPoint.lon]);
 
