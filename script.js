@@ -100,7 +100,7 @@ $(document).ready(function () {
           cnt++;
           if (cnt > 10) {
             cnt = 0;
-            exit;
+            return;
           }
         });
       },
