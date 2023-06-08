@@ -35,6 +35,7 @@ $(document).ready(function () {
           }
         });
         var values = {};
+        var cnt = 0;
         // Xử lý dữ liệu mới và hiển thị lên bản đồ
         data.forEach(function (item) {
           var lat = item.lat;
@@ -95,6 +96,12 @@ $(document).ready(function () {
             }),
           }).addTo(map);
           marker.bindPopup("Giá trị: " + value);
+
+          cnt++;
+          if (cnt > 10) {
+            cnt = 0;
+            exit;
+          }
         });
       },
       error: function () {
