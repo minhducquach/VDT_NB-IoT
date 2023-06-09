@@ -13,6 +13,11 @@
 #include "soc/rtc.h"
 #include <inttypes.h>
 #include "esp_timer.h"
+#include <rom/ets_sys.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "nvs_flash.h"
+#include "nvs.h"
 //#include "esp_spiffs.h"
 
 
@@ -22,18 +27,24 @@ static const int RX_BUF_SIZE = 1024;
 #define TXD_PIN (GPIO_NUM_17)
 #define RXD_PIN (GPIO_NUM_16)
 
-bool flag = 0;
+bool flag,flag_time = 0;
 char *data_pub;
-char *data_raw = "";
+char *data_raw = ""	;
+char* data_send;
 char *rsrp, *rsrq, *sinr, *pci, *cellid, *mcc, *mnc, *tac, *lon, *lat;
-//FILE* certFile;
-//size_t fileSize;
+
 #define DST 5
-//RTC_DATA_ATTR bool flag_sleep = 0;
+
 RTC_DATA_ATTR int state = -1;
 RTC_DATA_ATTR bool restart = 0;
+RTC_DATA_ATTR bool sleepState = 0;
+//RTC_DATA_ATTR uint64_t timeSinceStart = 0;
 RTC_DATA_ATTR uint64_t timer = 0;
-RTC_DATA_ATTR uint64_t lastPub = 0;
+//RTC_DATA_ATTR uint64_t timeSleep = 0;
+//RTC_DATA_ATTR uint64_t lastPub = 0;
+//RTC_DATA_ATTR uint64_t time_run = 0;
+
+nvs_handle_t my_handle;
 
 void goToDS(uint64_t timer){
 //	if (flag == 1){
@@ -47,12 +58,7 @@ void getDataCENG(char *chuoi);
 void getDataGNSS(char *chuoi);
 void init(void)
 {
-//	esp_vfs_spiffs_conf_t conf = {
-//		.base_path = "/spiffs",
-//		.partition_label = NULL,
-//		.max_files = 5,
-//		.format_if_mount_failed = true
-//	};
+
 	const uart_config_t uart_config = { .baud_rate = 115200,
 		.data_bits = UART_DATA_8_BITS,
 		.parity = UART_PARITY_DISABLE,
@@ -71,6 +77,7 @@ void init(void)
 //	fseek(certFile, 0L, SEEK_END);
 //	fileSize = ftell(certFile);
 //	fseek(certFile, 0L, SEEK_SET);
+	nvs_flash_init();
 }
 
 void initGPIO(void)
@@ -78,7 +85,7 @@ void initGPIO(void)
 	gpio_config_t io_conf;
 	io_conf.pin_bit_mask = 1 << PWR;
 	io_conf.mode = GPIO_MODE_OUTPUT;
-	io_conf.pull_up_en = 0;
+	io_conf.pull_up_en = 1;
 	io_conf.pull_down_en = 0;
 	io_conf.intr_type = GPIO_INTR_DISABLE;
 	gpio_config(&io_conf);
@@ -103,11 +110,12 @@ static void tx_task(void *arg)
 	esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
 	while (1)
 	{
+	//	ESP_LOGI(TX_TASK_TAG, "Current Time: %d",(int)(esp_timer_get_time() ));
 		switch (state)
 		{
 			case -1:
 				sendData(TX_TASK_TAG, "AT+IPR=115200\r");
-//				gpio_set_level(PWR, 0);
+
 				break;
 			case 0:
 				sendData(TX_TASK_TAG, "ATE0\r");
@@ -138,15 +146,16 @@ static void tx_task(void *arg)
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
 			case 4:	//4
-				sendData(TX_TASK_TAG, "AT+SMCONF=\"PASSWORD\",\"aio_BbkE43RUkvxYdIwAwDorFKImFSZn\"\r");
+				sendData(TX_TASK_TAG, "AT+SMCONF=\"PASSWORD\",\"aio_ytot39or1nRzN5T2KMuSJrO8yCrR\"\r");
+			//	sendData(TX_TASK_TAG, "AT+SMCONF=\"RETAIN\",1\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
 			case 5:	//5
-				sendData(TX_TASK_TAG, "AT+SMCONF=\"CLIENTID\",\"c1dfcc34-7f08-4c1a-a362-1ac3b0169a0d\"\r");
+				sendData(TX_TASK_TAG, "AT+SMCONF=\"CLIENTID\",\"4085ee10-fd30-11ed-b64e-63b44ed1ddba\"\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
 			case 6:	//6
-				timer = esp_timer_get_time();
+//				timer = esp_timer_get_time();
 				sendData(TX_TASK_TAG, "AT+CENG?\r");
 
 				vTaskDelay(500 / portTICK_PERIOD_MS);
@@ -158,7 +167,7 @@ static void tx_task(void *arg)
 			case 8:	//8
 				sendData(TX_TASK_TAG, "AT+CGNSINF\r");
 
-				vTaskDelay(3000 / portTICK_PERIOD_MS);
+				vTaskDelay(2000 / portTICK_PERIOD_MS);
 				break;
 			case 9:	//9
 				sendData(TX_TASK_TAG, "AT+CGNSPWR=0\r");
@@ -178,27 +187,52 @@ static void tx_task(void *arg)
 				break;
 			case 13:	//11
 				sendData(TX_TASK_TAG, "AT+SMCONN\r");
-				vTaskDelay(5000 / portTICK_PERIOD_MS);
+				vTaskDelay(2000 / portTICK_PERIOD_MS);
 				break;
-
-				//    	case 14:
-				//    		sendData(TX_TASK_TAG, "AT+SMSTATE?\r");
-				//    		vTaskDelay(500 / portTICK_PERIOD_MS);
-				//    		break;
 			case 14:	//12
-				char *data_ATPub = (char*) malloc(100);
-				if (restart == 1 && (esp_timer_get_time() - lastPub < 120000000)){
-					uint32_t delay = (120000000 - esp_timer_get_time() + lastPub) / 1000;
-					ESP_LOGI(TX_TASK_TAG, "Delay");
-					vTaskDelay(delay / portTICK_PERIOD_MS);
+				if (restart == 0){
+					char *data_ATPub = (char*) malloc(100);
+					sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_pub));
+					sendData(TX_TASK_TAG, data_ATPub);
+					//					flag_time =0;
+					vTaskDelay(500 / portTICK_PERIOD_MS);
+					free(data_ATPub);
+					restart = 1;
 				}
-				sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_pub));
-				sendData(TX_TASK_TAG, data_ATPub);
-				vTaskDelay(500 / portTICK_PERIOD_MS);
-				free(data_ATPub);
+				else {
+					if (sleepState == 0 && (esp_timer_get_time() - timer < 300000000)){
+						goToDS(300000000 - (esp_timer_get_time() - timer));
+						sleepState = 1;
+					}
+					else if (sleepState == 1){
+						char *data_ATPub = (char*) malloc(100);
+						size_t str_size;
+						nvs_open("storage", NVS_READWRITE, &my_handle);
+						nvs_get_str(my_handle, "data_pub", NULL, &str_size);
+						data_send = (char*) malloc(str_size);
+						nvs_get_str(my_handle, "data_pub", data_send, &str_size);
+//						nvs_commit(my_handle);
+						nvs_close(my_handle);
+						sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_send));
+						sendData(TX_TASK_TAG, data_ATPub);
+						//					flag_time =0;
+						vTaskDelay(500 / portTICK_PERIOD_MS);
+						free(data_ATPub);
+					}
+				}
+//				if (restart == 1 && (timeSinceStart + esp_timer_get_time() + timeSleep - lastPub < 300000000))
+//				{
+//					uint32_t delay = (300000000 - (timeSinceStart + esp_timer_get_time() + timeSleep - lastPub))/1000 ;
+//					ESP_LOGI(TX_TASK_TAG, "Delay");
+//					vTaskDelay(delay / portTICK_PERIOD_MS);
+					//ets_delay_us(delay);
+//				}
+//				else flag_time= 1;
+//				if (flag_time ==1)
+//				{
 				break;
 			case 15:	//13
-				sendData(TX_TASK_TAG, data_pub);
+				sendData(TX_TASK_TAG, data_send);
 				vTaskDelay(1000 / portTICK_PERIOD_MS);
 				break;
 			default:
@@ -224,10 +258,10 @@ static void rx_task(void *arg)
 		if (rxBytes > 0)
 		{
 			data[rxBytes] = 0;
-			// ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-			if (state == -1 || state == 1 || state == 6 || state == 8 || state == 10 || state == 12)
+
+			if (state == -1 || state == 1 || state == 6 || state == 8 || state == 10 || state == 12 || state == 13)
 			{
-				//|| state == 14
+
 				if (state == -1 && strstr((const char *) data, "OK"))
 				{
 					state = 0;
@@ -253,10 +287,6 @@ static void rx_task(void *arg)
 					state++;
 				}
 
-				//            	else if (state == 8)
-				//            	{            	 	//            		 sprintf(data_pub+strlen(data_pub),"\"lat\":10.785861,\"lon\":106.702722,\"ele\":0}");
-				//            		 state++;
-				//            	}
 				else if (state == 8 && !strstr((const char *) data, "+CGNSINF: 1,,") && !strstr((const char *) data, "+CGNSINF: 0"))
 				{
 					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
@@ -270,26 +300,32 @@ static void rx_task(void *arg)
 					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 					state++;
 				}
-
-				//            	else if (state == 14 && (strstr((const char*) data, "1") || strstr((const char*) data, "2"))){ 	//            		ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
-				//            	    state++;
-				//            	}
-
-				//            	else if (state == 14 && (strstr((const char*) data, "0"))){ 	//            	    ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
-				//            	    state--;
-				//            	}
+				else if (state == 13)
+				{
+					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
+					state++;
+					strcpy(data_send, data_pub);
+					nvs_open("storage", NVS_READWRITE, &my_handle);
+					nvs_set_str(my_handle, "data_send", data_send);
+					nvs_commit(my_handle);
+					nvs_close(my_handle);
+				}
 			}
 
-			//
+
 			else if (strstr((const char *) data, "OK") && state == 15)
 			{
 				ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 				free(data_pub);
 				state = 6;
-				restart = 1;
-				lastPub = esp_timer_get_time();
-				timer = 120000000 - esp_timer_get_time() + timer;
-				goToDS(timer);
+				timer = esp_timer_get_time();
+//				restart = 1;
+//				timeSinceStart = timeSinceStart + timeSleep + esp_timer_get_time();
+//				lastPub = timeSinceStart;
+//				timer = 300000000 - esp_timer_get_time() + timer;
+//				timeSleep = timer;
+//				if (timer <0) timer =0;
+//				goToDS(timer);
 			}
 			else if (strstr((const char *) data, "OK"))
 			{
@@ -302,6 +338,11 @@ static void rx_task(void *arg)
 
 				state++;
 			}
+			else if (strstr((const char *) data, "+SMSTATE: 0"))
+						{
+							ESP_LOGI(RX_TASK_TAG, "State: '%d' error mqtt connect", state);
+							state=13;
+						}
 			else
 			{
 				ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
@@ -317,11 +358,11 @@ static void rx_task(void *arg)
 
 void getDataCENG(char *chuoi)
 {
-	//	printf("%s", chuoi);
+
 	char *found = strchr(chuoi, '\"');
-	//	printf("%s", found);
+
 	char *found1 = strstr(found, "\n");
-	//	printf("%s", found1);
+
 	size_t pos = found1 - found + 1;
 	char sub_str[52];
 	size_t i;
@@ -329,7 +370,6 @@ void getDataCENG(char *chuoi)
 	{
 		sub_str[i] = found[i + 1];
 	}
-
 	char *parameter;
 	int cnt5 = 0;
 	parameter = strtok(sub_str, ",");
@@ -367,14 +407,13 @@ void getDataCENG(char *chuoi)
 				break;
 		}
 	}
-
 	sprintf(data_pub, "{\"value\":\"pci:%s,rsrp:%s,rsrq:%s,sinr:%s,cellid:%s\",", pci, rsrp, rsrq, sinr, cellid);
+
 }
 
 void getDataGNSS(char *chuoi)
 {
 	char *st = strchr(chuoi, ':');
-
 	char sub_str1[(int) strlen(st)];
 	size_t i;
 	for (i = 0; i < strlen(st); i++) sub_str1[i] = st[i];
@@ -388,7 +427,6 @@ void getDataGNSS(char *chuoi)
 		if (cnt1 == 3) lat = parameter1;
 		else if (cnt1 == 4) lon = parameter1;
 	}
-
 	sprintf(data_pub + strlen(data_pub), "\"lat\":%s,\"lon\":%s,\"ele\":0}", lat, lon);
 
 }

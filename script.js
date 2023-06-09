@@ -13,7 +13,6 @@ $(document).ready(function () {
   var aioURL = `https://io.adafruit.com/api/v2/${aioUsername}/feeds/${aioFeedName}/data`;
 
   var latestPoint;
-  var start = 0;
 
   function getDataAndUpdateMap() {
     $.ajax({
@@ -26,16 +25,11 @@ $(document).ready(function () {
       success: function (data) {
         // Clear existing markers on the map
         markerLayer.clearLayers();
-
-        var latestData = data.slice(0, 20);
+        console.log(data.length);
+        if (data.length > 20) var latestData = data.slice(0, 20);
+        else latestData = data;
         latestPoint = latestData[0]; // Get the latest data point
         map.setView([latestPoint.lat, latestPoint.lon]);
-
-        if (start == 0) {
-          // Update the map view to the latest point
-          map.setView([latestPoint.lat, latestPoint.lon]);
-          start = 1;
-        }
 
         latestData.forEach(function (item, index) {
           var lat = item.lat;
@@ -249,6 +243,7 @@ $(document).ready(function () {
     var legendDiv = L.DomUtil.create("div", "legend");
 
     legendDiv.innerHTML = `
+    <div class="legend-title" style="text-align: center; font-size: 15px; font-weight: bold; padding: 5px;">Signal Quality</div>
     <div class="color-bar">
       <span class="color-bar-item" style="background-color: green;"></span>
       <span class="color-bar-item" style="background-color: gold;"></span>
