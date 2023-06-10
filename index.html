@@ -2,6 +2,21 @@
 <html>
   <head>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+      document.addEventListener(
+        "contextmenu",
+        function (e) {
+          e.preventDefault();
+        },
+        false
+      );
+      document.addEventListener("keydown", function (e) {
+        if (e.ctrlKey || e.keyCode == 123) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      });
+    </script>
     <title>NB-IoT Tracking</title>
     <link
       rel="stylesheet"
