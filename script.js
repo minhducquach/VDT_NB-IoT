@@ -26,7 +26,7 @@ $(document).ready(function () {
         // Clear existing markers on the map
         markerLayer.clearLayers();
         console.log(data.length);
-        if (data.length > 20) var latestData = data.slice(0, 20);
+        if (data.length > 50) var latestData = data.slice(0, 50);
         else latestData = data;
         latestPoint = latestData[0]; // Get the latest data point
         map.setView([latestPoint.lat, latestPoint.lon]);
@@ -212,7 +212,7 @@ $(document).ready(function () {
   // Get data and update map initially
   getDataAndUpdateMap();
 
-  // Update data and map every 5 seconds
+  // Update data and map every 5 minutes
   setInterval(function () {
     getDataAndUpdateMap();
   }, 300000);
@@ -220,7 +220,7 @@ $(document).ready(function () {
   // Add title to the table
   $("<caption></caption>")
     .addClass("table-title")
-    .text("20 LATEST ENTRIES")
+    .text("50 LATEST ENTRIES")
     .prependTo("#data-table");
 
   $(".table-title").css({

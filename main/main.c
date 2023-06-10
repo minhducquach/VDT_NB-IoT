@@ -27,8 +27,8 @@ static const int RX_BUF_SIZE = 1024;
 #define TXD_PIN (GPIO_NUM_17)
 #define RXD_PIN (GPIO_NUM_16)
 
-bool flag,flag_time = 0;
-char *data_pub;
+bool flag = 0;
+char* data_pub;
 char *data_raw = ""	;
 char* data_send;
 char *rsrp, *rsrq, *sinr, *pci, *cellid, *mcc, *mnc, *tac, *lon, *lat;
@@ -38,13 +38,10 @@ char *rsrp, *rsrq, *sinr, *pci, *cellid, *mcc, *mnc, *tac, *lon, *lat;
 RTC_DATA_ATTR int state = -1;
 RTC_DATA_ATTR bool restart = 0;
 RTC_DATA_ATTR bool sleepState = 0;
-//RTC_DATA_ATTR uint64_t timeSinceStart = 0;
-RTC_DATA_ATTR uint64_t timer = 0;
-//RTC_DATA_ATTR uint64_t timeSleep = 0;
-//RTC_DATA_ATTR uint64_t lastPub = 0;
-//RTC_DATA_ATTR uint64_t time_run = 0;
+uint64_t timer = 0;
 
-nvs_handle_t my_handle;
+
+RTC_DATA_ATTR nvs_handle_t my_handle;
 
 void goToDS(uint64_t timer){
 //	if (flag == 1){
@@ -190,6 +187,7 @@ static void tx_task(void *arg)
 				vTaskDelay(2000 / portTICK_PERIOD_MS);
 				break;
 			case 14:	//12
+				ESP_LOGI(TX_TASK_TAG, "Time: %d,Restart: %d,Sleep: %d",(int)esp_timer_get_time(), restart,sleepState);
 				if (restart == 0){
 					char *data_ATPub = (char*) malloc(100);
 					sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_pub));
@@ -197,14 +195,17 @@ static void tx_task(void *arg)
 					//					flag_time =0;
 					vTaskDelay(500 / portTICK_PERIOD_MS);
 					free(data_ATPub);
-					restart = 1;
+
 				}
 				else {
-					if (sleepState == 0 && (esp_timer_get_time() - timer < 300000000)){
-						goToDS(300000000 - (esp_timer_get_time() - timer));
+
+					if (sleepState == 0 && (esp_timer_get_time()-timer < 300000000)){
+						ESP_LOGI(TX_TASK_TAG, "Start Deep Sleep !!!!!!");
 						sleepState = 1;
-					}
-					else if (sleepState == 1){
+
+						goToDS(300000000 - (esp_timer_get_time() -timer));
+
+					}else if (sleepState == 1){
 						char *data_ATPub = (char*) malloc(100);
 						size_t str_size;
 						nvs_open("storage", NVS_READWRITE, &my_handle);
@@ -215,9 +216,18 @@ static void tx_task(void *arg)
 						nvs_close(my_handle);
 						sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_send));
 						sendData(TX_TASK_TAG, data_ATPub);
-						//					flag_time =0;
+						sleepState=0;
 						vTaskDelay(500 / portTICK_PERIOD_MS);
 						free(data_ATPub);
+					}
+					else
+					{
+						char *data_ATPub = (char*) malloc(100);
+						sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_pub));
+						sendData(TX_TASK_TAG, data_ATPub);
+						free(data_ATPub);
+						restart=0;
+						vTaskDelay(500 / portTICK_PERIOD_MS);
 					}
 				}
 //				if (restart == 1 && (timeSinceStart + esp_timer_get_time() + timeSleep - lastPub < 300000000))
@@ -232,7 +242,9 @@ static void tx_task(void *arg)
 //				{
 				break;
 			case 15:	//13
-				sendData(TX_TASK_TAG, data_send);
+				if (restart == 0){
+					sendData(TX_TASK_TAG, data_pub);}
+				else sendData(TX_TASK_TAG, data_send);
 				vTaskDelay(1000 / portTICK_PERIOD_MS);
 				break;
 			default:
@@ -300,16 +312,21 @@ static void rx_task(void *arg)
 					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 					state++;
 				}
-				else if (state == 13)
+				else if (state == 13 && strstr((const char *) data, "OK"))
 				{
 					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 					state++;
-					strcpy(data_send, data_pub);
+					//strcpy(data_send, data_pub);
+					if (restart==1) {
 					nvs_open("storage", NVS_READWRITE, &my_handle);
-					nvs_set_str(my_handle, "data_send", data_send);
+					nvs_set_str(my_handle, "data_pub", data_pub);
 					nvs_commit(my_handle);
-					nvs_close(my_handle);
+					nvs_close(my_handle);}
 				}
+				else if (state == 13 && strstr((const char *) data, "+APP PDP: 0,DEACTIVE"))
+								{
+									state=6;
+								}
 			}
 
 
@@ -317,9 +334,13 @@ static void rx_task(void *arg)
 			{
 				ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 				free(data_pub);
+				if (restart==1) free(data_send);
 				state = 6;
-				timer = esp_timer_get_time();
-//				restart = 1;
+				if (restart == 0) timer = esp_timer_get_time();
+				else {
+					timer =0;
+					}
+				restart = 1;
 //				timeSinceStart = timeSinceStart + timeSleep + esp_timer_get_time();
 //				lastPub = timeSinceStart;
 //				timer = 300000000 - esp_timer_get_time() + timer;
