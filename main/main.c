@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include "nvs_flash.h"
 #include "nvs.h"
-//#include "esp_spiffs.h"
 
 
 static const int RX_BUF_SIZE = 1024;
@@ -44,11 +43,9 @@ uint64_t timer = 0;
 RTC_DATA_ATTR nvs_handle_t my_handle;
 
 void goToDS(uint64_t timer){
-//	if (flag == 1){
-		printf("Going to DS\n");
-		esp_sleep_enable_timer_wakeup(timer);
-		esp_deep_sleep_start();
-//	}
+	printf("Going to DS\n");
+	esp_sleep_enable_timer_wakeup(timer);
+	esp_deep_sleep_start();
 }
 
 void getDataCENG(char *chuoi);
@@ -64,16 +61,10 @@ void init(void)
 		.source_clk = UART_SCLK_DEFAULT,
 	};
 
-	// We won't use a buffer for sending data.
 	uart_driver_install(UART_NUM_1, RX_BUF_SIZE *2, 0, 0, NULL, 0);
 	uart_param_config(UART_NUM_1, &uart_config);
 	uart_set_pin(UART_NUM_1, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-//	esp_vfs_spiffs_register(&conf);
-//	certFile = fopen("/spiffs/cert.crt", "r");
-//	fseek(certFile, 0L, SEEK_END);
-//	fileSize = ftell(certFile);
-//	fseek(certFile, 0L, SEEK_SET);
 	nvs_flash_init();
 }
 
@@ -107,7 +98,6 @@ static void tx_task(void *arg)
 	esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
 	while (1)
 	{
-	//	ESP_LOGI(TX_TASK_TAG, "Current Time: %d",(int)(esp_timer_get_time() ));
 		switch (state)
 		{
 			case -1:
@@ -118,7 +108,7 @@ static void tx_task(void *arg)
 				sendData(TX_TASK_TAG, "ATE0\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 1: //1
+			case 1:
 				if (flag == 1)
 				{
 					sendData(TX_TASK_TAG, "AT+CPOWD=0\r");
@@ -131,68 +121,61 @@ static void tx_task(void *arg)
 					sendData(TX_TASK_TAG, "AT+CEREG?\r");
 					vTaskDelay(500 / portTICK_PERIOD_MS);
 				}
-
 				break;
-
-			case 2:	//2
+			case 2:
 				sendData(TX_TASK_TAG, "AT+SMCONF=\"URL\",\"io.adafruit.com\",1883\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 3:	///3
+			case 3:
 				sendData(TX_TASK_TAG, "AT+SMCONF=\"USERNAME\",\"minhduco19\"\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 4:	//4
+			case 4:
 				sendData(TX_TASK_TAG, "AT+SMCONF=\"PASSWORD\",\"aio_ytot39or1nRzN5T2KMuSJrO8yCrR\"\r");
-			//	sendData(TX_TASK_TAG, "AT+SMCONF=\"RETAIN\",1\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 5:	//5
+			case 5:
 				sendData(TX_TASK_TAG, "AT+SMCONF=\"CLIENTID\",\"4085ee10-fd30-11ed-b64e-63b44ed1ddba\"\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 6:	//6
-//				timer = esp_timer_get_time();
+			case 6:
 				sendData(TX_TASK_TAG, "AT+CENG?\r");
-
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 7:	//7
+			case 7:
 				sendData(TX_TASK_TAG, "AT+CGNSPWR=1\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 8:	//8
+			case 8:
 				sendData(TX_TASK_TAG, "AT+CGNSINF\r");
-
 				vTaskDelay(2000 / portTICK_PERIOD_MS);
 				break;
-			case 9:	//9
+			case 9:
 				sendData(TX_TASK_TAG, "AT+CGNSPWR=0\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 10:	//2
+			case 10:
 				sendData(TX_TASK_TAG, "AT+CNACT=0,0\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 11:	//10
+			case 11:
 				sendData(TX_TASK_TAG, "AT+CNACT=0,1\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 12:	//10
+			case 12:
 				sendData(TX_TASK_TAG, "AT+SMDISC\r");
 				vTaskDelay(500 / portTICK_PERIOD_MS);
 				break;
-			case 13:	//11
+			case 13:
 				sendData(TX_TASK_TAG, "AT+SMCONN\r");
 				vTaskDelay(2000 / portTICK_PERIOD_MS);
 				break;
-			case 14:	//12
+			case 14:
 				ESP_LOGI(TX_TASK_TAG, "Time: %d,Restart: %d,Sleep: %d",(int)esp_timer_get_time(), restart,sleepState);
 				if (restart == 0){
 					char *data_ATPub = (char*) malloc(100);
 					sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_pub));
 					sendData(TX_TASK_TAG, data_ATPub);
-					//					flag_time =0;
 					vTaskDelay(500 / portTICK_PERIOD_MS);
 					free(data_ATPub);
 
@@ -202,17 +185,15 @@ static void tx_task(void *arg)
 					if (sleepState == 0 && (esp_timer_get_time()-timer < 300000000)){
 						ESP_LOGI(TX_TASK_TAG, "Start Deep Sleep !!!!!!");
 						sleepState = 1;
-
 						goToDS(300000000 - (esp_timer_get_time() -timer));
-
-					}else if (sleepState == 1){
+					}
+					else if (sleepState == 1){
 						char *data_ATPub = (char*) malloc(100);
 						size_t str_size;
 						nvs_open("storage", NVS_READWRITE, &my_handle);
 						nvs_get_str(my_handle, "data_pub", NULL, &str_size);
 						data_send = (char*) malloc(str_size);
 						nvs_get_str(my_handle, "data_pub", data_send, &str_size);
-//						nvs_commit(my_handle);
 						nvs_close(my_handle);
 						sprintf(data_ATPub, "AT+SMPUB=\"minhduco19/feeds/nb-iot-tracking.nb-iot/json\",%d,0,1\r", strlen(data_send));
 						sendData(TX_TASK_TAG, data_ATPub);
@@ -230,18 +211,8 @@ static void tx_task(void *arg)
 						vTaskDelay(500 / portTICK_PERIOD_MS);
 					}
 				}
-//				if (restart == 1 && (timeSinceStart + esp_timer_get_time() + timeSleep - lastPub < 300000000))
-//				{
-//					uint32_t delay = (300000000 - (timeSinceStart + esp_timer_get_time() + timeSleep - lastPub))/1000 ;
-//					ESP_LOGI(TX_TASK_TAG, "Delay");
-//					vTaskDelay(delay / portTICK_PERIOD_MS);
-					//ets_delay_us(delay);
-//				}
-//				else flag_time= 1;
-//				if (flag_time ==1)
-//				{
 				break;
-			case 15:	//13
+			case 15:
 				if (restart == 0){
 					sendData(TX_TASK_TAG, data_pub);}
 				else sendData(TX_TASK_TAG, data_send);
@@ -316,7 +287,6 @@ static void rx_task(void *arg)
 				{
 					ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 					state++;
-					//strcpy(data_send, data_pub);
 					if (restart==1) {
 					nvs_open("storage", NVS_READWRITE, &my_handle);
 					nvs_set_str(my_handle, "data_pub", data_pub);
@@ -324,12 +294,10 @@ static void rx_task(void *arg)
 					nvs_close(my_handle);}
 				}
 				else if (state == 13 && strstr((const char *) data, "+APP PDP: 0,DEACTIVE"))
-								{
-									state=6;
-								}
+				{
+					state=6;
+				}
 			}
-
-
 			else if (strstr((const char *) data, "OK") && state == 15)
 			{
 				ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
@@ -339,14 +307,8 @@ static void rx_task(void *arg)
 				if (restart == 0) timer = esp_timer_get_time();
 				else {
 					timer =0;
-					}
+				}
 				restart = 1;
-//				timeSinceStart = timeSinceStart + timeSleep + esp_timer_get_time();
-//				lastPub = timeSinceStart;
-//				timer = 300000000 - esp_timer_get_time() + timer;
-//				timeSleep = timer;
-//				if (timer <0) timer =0;
-//				goToDS(timer);
 			}
 			else if (strstr((const char *) data, "OK"))
 			{
@@ -360,17 +322,16 @@ static void rx_task(void *arg)
 				state++;
 			}
 			else if (strstr((const char *) data, "+SMSTATE: 0"))
-						{
-							ESP_LOGI(RX_TASK_TAG, "State: '%d' error mqtt connect", state);
-							state=13;
-						}
+			{
+				ESP_LOGI(RX_TASK_TAG, "State: '%d' error mqtt connect", state);
+				state=13;
+			}
 			else
 			{
 				ESP_LOGI(RX_TASK_TAG, "State: '%d'", state);
 			}
 
 			ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
-			//ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
 		}
 	}
 
@@ -429,7 +390,6 @@ void getDataCENG(char *chuoi)
 		}
 	}
 	sprintf(data_pub, "{\"value\":\"pci:%s,rsrp:%s,rsrq:%s,sinr:%s,cellid:%s\",", pci, rsrp, rsrq, sinr, cellid);
-
 }
 
 void getDataGNSS(char *chuoi)
@@ -449,7 +409,6 @@ void getDataGNSS(char *chuoi)
 		else if (cnt1 == 4) lon = parameter1;
 	}
 	sprintf(data_pub + strlen(data_pub), "\"lat\":%s,\"lon\":%s,\"ele\":0}", lat, lon);
-
 }
 
 void app_main(void)
